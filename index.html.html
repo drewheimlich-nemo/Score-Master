@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Score Master Trivia</title>
+    
+    <!-- PWA & Mobile Optimization -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="manifest.json">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bar { width: 4px; border-radius: 2px; background: #ec4899; }
+        * { -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { touch-action: manipulation; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans overflow-hidden">
+
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl space-y-6 text-center border border-slate-700 overflow-y-auto max-h-[90vh] custom-scrollbar">
+        <h1 class="text-4xl font-bold text-pink-500 tracking-tighter">Score Master</h1>
+        <p class="text-slate-400">Identify your movie scores in 5 seconds. Import tracks from your device to start the trivia!</p>
+        
+        <div class="space-y-4 pt-4">
+            <button id="btn-start" class="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                START GAME
+            </button>
+            
+            <div class="border-t border-slate-700 pt-6 mt-6 text-left">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-bold text-slate-500 uppercase tracking-widest">Library</h2>
+                    <label class="bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold py-1 px-3 rounded-full cursor-pointer transition-colors">
+                        IMPORT SONGS
+                        <input type="file" id="file-input" class="hidden" accept="audio/*" multiple>
+                    </label>
+                </div>
+
+                <!-- Song List -->
+                <div id="song-list" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                    <div class="text-slate-600 text-xs italic text-center py-4">No songs imported yet...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Game Interface -->
+    <div id="game-screen" class="hidden max-w-md w-full flex flex-col items-center space-y-6">
+        
+        <!-- Scoreboard Header -->
+        <div class="w-full grid grid-cols-3 gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
+            <div>
+                <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Score</p>
+                <p id="stat-score" class="text-xl font-bold text-pink-500">0</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Played</p>
+                <p id="stat-total" class="text-xl font-bold">0</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Accuracy</p>
+                <p id="stat-percent" class="text-xl font-bold">0%</p>
+            </div>
+        </div>
+
+        <div id="play-view" class="w-full flex flex-col items-center text-center space-y-8">
+            <div class="text-slate-500 font-mono text-xs tracking-widest uppercase">
+                Round <span id="round-num">1</span>
+            </div>
+
+            <div class="relative w-40 h-40">
+                <div id="status-ring" class="absolute inset-0 border-4 border-slate-700 rounded-full flex items-center justify-center">
+                    <span id="timer-text" class="text-5xl font-mono font-bold text-pink-500">0</span>
+                </div>
+                <div id="visualizer" class="absolute inset-0 flex items-center justify-center space-x-1 hidden">
+                    <div class="bar h-8 animate-[bounce_0.8s_infinite]"></div>
+                    <div class="bar h-16 animate-[bounce_1.1s_infinite]"></div>
+                    <div class="bar h-24 animate-[bounce_0.9s_infinite]"></div>
+                    <div class="bar h-16 animate-[bounce_1.2s_infinite]"></div>
+                    <div class="bar h-8 animate-[bounce_1s_infinite]"></div>
+                </div>
+            </div>
+
+            <div class="space-y-4 h-28 flex flex-col justify-center">
+                <h3 id="game-status" class="text-xl font-semibold tracking-wide uppercase text-slate-300 italic">Get Ready...</h3>
+                
+                <div id="reveal-card" class="bg-slate-800 p-4 rounded-xl shadow-2xl opacity-0 transition-all duration-500 transform translate-y-4 border border-pink-500/30">
+                    <p class="text-pink-500 text-[10px] uppercase font-bold mb-1 tracking-tighter">Movie Score:</p>
+                    <h4 id="song-name" class="text-lg font-bold leading-tight">...</h4>
+                    <p id="artist-name" class="text-slate-400 text-xs italic">...</p>
+                </div>
+            </div>
+
+            <div class="w-full flex flex-col space-y-3">
+                <button id="btn-skip" class="w-full bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white font-bold py-5 rounded-xl transition-all flex items-center justify-center shadow-inner">
+                    <span>GOT IT! (SKIP)</span>
+                </button>
+                
+                <div class="flex space-x-3 w-full">
+                    <button id="btn-pause" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-sm font-bold border border-slate-700">
+                        PAUSE
+                    </button>
+                    <button id="btn-quit" class="flex-1 bg-slate-800 hover:bg-red-900/20 text-slate-500 hover:text-red-400 py-3 rounded-xl text-sm font-bold border border-slate-700">
+                        QUIT
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio-player" preload="auto"></audio>
+
+    <script>
+        let MOVIE_SCORES = [];
+        let currentIndex = 0;
+        let playlist = [];
+        let score = 0;
+        let totalListened = 0;
+        let isPaused = false;
+        let currentPhase = 'idle'; 
+        let currentTimerResolve = null;
+        let remainingSeconds = 0;
+        let skipRequested = false;
+
+        const CONFIG = {
+            PLAY_DURATION: 5,
+            WAIT_DURATION: 10,
+            REVEAL_DURATION: 3
+        };
+
+        const elements = {
+            splash: document.getElementById('splash-screen'),
+            game: document.getElementById('game-screen'),
+            audio: document.getElementById('audio-player'),
+            timer: document.getElementById('timer-text'),
+            status: document.getElementById('game-status'),
+            reveal: document.getElementById('reveal-card'),
+            title: document.getElementById('song-name'),
+            composer: document.getElementById('artist-name'),
+            round: document.getElementById('round-num'),
+            visualizer: document.getElementById('visualizer'),
+            ring: document.getElementById('status-ring'),
+            btnStart: document.getElementById('btn-start'),
+            btnQuit: document.getElementById('btn-quit'),
+            btnPause: document.getElementById('btn-pause'),
+            btnSkip: document.getElementById('btn-skip'),
+            statScore: document.getElementById('stat-score'),
+            statTotal: document.getElementById('stat-total'),
+            statPercent: document.getElementById('stat-percent'),
+            songList: document.getElementById('song-list'),
+            fileInput: document.getElementById('file-input')
+        };
+
+        // File Management
+        elements.fileInput.onchange = (e) => {
+            const files = Array.from(e.target.files);
+            
+            files.forEach(file => {
+                // Generate a friendly name from the filename
+                let cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+                
+                const song = {
+                    movie: cleanName,
+                    composer: "Local File",
+                    url: URL.createObjectURL(file) // Create local blob URL
+                };
+                
+                MOVIE_SCORES.push(song);
+            });
+
+            renderSongList();
+            elements.btnStart.disabled = MOVIE_SCORES.length === 0;
+            // Clear input so same files can be re-selected if removed
+            elements.fileInput.value = '';
+        };
+
+        function renderSongList() {
+            if (MOVIE_SCORES.length === 0) {
+                elements.songList.innerHTML = `<div class="text-slate-600 text-xs italic text-center py-4">No songs imported yet...</div>`;
+                return;
+            }
+
+            elements.songList.innerHTML = '';
+            MOVIE_SCORES.forEach((song, index) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between bg-slate-700/30 p-2 rounded text-[11px] border border-slate-700';
+                item.innerHTML = `
+                    <div class="truncate mr-2">
+                        <span class="font-bold text-pink-400">${song.movie}</span>
+                    </div>
+                    <button onclick="removeSong(${index})" class="text-red-400 hover:text-red-300 px-2 font-bold">×</button>
+                `;
+                elements.songList.appendChild(item);
+            });
+        }
+
+        window.removeSong = function(index) {
+            // Revoke the object URL to free up memory
+            URL.revokeObjectURL(MOVIE_SCORES[index].url);
+            MOVIE_SCORES.splice(index, 1);
+            renderSongList();
+            elements.btnStart.disabled = MOVIE_SCORES.length === 0;
+        };
+
+        // Bluetooth Skip Logic
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('nexttrack', () => handleCorrectAction());
+            navigator.mediaSession.setActionHandler('previoustrack', () => handleCorrectAction());
+        }
+
+        elements.btnStart.onclick = () => {
+            elements.splash.classList.add('hidden');
+            elements.game.classList.remove('hidden');
+            playlist = [...MOVIE_SCORES].sort(() => Math.random() - 0.5);
+            currentIndex = 0;
+            score = 0;
+            totalListened = 0;
+            updateStats();
+            runGameLoop();
+        };
+
+        elements.btnQuit.onclick = () => {
+            // Clean up URLs on quit
+            MOVIE_SCORES.forEach(s => URL.revokeObjectURL(s.url));
+            location.reload();
+        }
+
+        elements.btnSkip.onclick = () => handleCorrectAction();
+
+        elements.btnPause.onclick = () => {
+            isPaused = !isPaused;
+            elements.btnPause.innerText = isPaused ? "RESUME" : "PAUSE";
+            elements.btnPause.classList.toggle('bg-pink-600', isPaused);
+            if (isPaused) {
+                elements.audio.pause();
+                elements.status.innerText = "Paused";
+            } else {
+                if (currentPhase === 'playing') elements.audio.play();
+                elements.status.innerText = getStatusTextForPhase(currentPhase);
+            }
+        };
+
+        function handleCorrectAction() {
+            if (currentPhase === 'playing' || currentPhase === 'waiting') {
+                score++;
+                updateStats();
+                skipRequested = true;
+                if (currentTimerResolve) currentTimerResolve('skip');
+            } else if (currentPhase === 'revealing') {
+                if (currentTimerResolve) currentTimerResolve('skip');
+            }
+        }
+
+        function updateStats() {
+            elements.statScore.innerText = score;
+            elements.statTotal.innerText = totalListened;
+            const percent = totalListened === 0 ? 0 : Math.round((score / totalListened) * 100);
+            elements.statPercent.innerText = percent + "%";
+        }
+
+        async function runGameLoop() {
+            if (currentIndex >= playlist.length) {
+                elements.status.innerText = "Playlist Finished!";
+                elements.timer.innerText = "✓";
+                return;
+            }
+
+            const track = playlist[currentIndex];
+            elements.round.innerText = currentIndex + 1;
+            totalListened++;
+            updateStats();
+            skipRequested = false;
+
+            currentPhase = 'playing';
+            setUIState('playing');
+            elements.audio.src = track.url;
+            try { 
+                await elements.audio.play(); 
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: track.movie,
+                        artist: 'Score Master Trivia'
+                    });
+                }
+            } catch (e) {}
+            
+            await controlledCountdown(CONFIG.PLAY_DURATION);
+            elements.audio.pause();
+
+            if (!skipRequested) {
+                currentPhase = 'waiting';
+                setUIState('waiting');
+                await controlledCountdown(CONFIG.WAIT_DURATION);
+            }
+
+            currentPhase = 'revealing';
+            setUIState('revealing', track);
+            await controlledCountdown(skipRequested ? 1 : CONFIG.REVEAL_DURATION);
+
+            setUIState('reset');
+            currentPhase = 'idle';
+            currentIndex++;
+            runGameLoop();
+        }
+
+        function setUIState(state, data = null) {
+            switch(state) {
+                case 'playing':
+                    elements.status.innerText = "Listening...";
+                    elements.visualizer.classList.remove('hidden');
+                    elements.ring.classList.add('hidden');
+                    elements.reveal.classList.add('opacity-0', 'translate-y-4');
+                    break;
+                case 'waiting':
+                    elements.status.innerText = "Guessing Time...";
+                    elements.visualizer.classList.add('hidden');
+                    elements.ring.classList.remove('hidden');
+                    break;
+                case 'revealing':
+                    elements.status.innerText = "The Answer";
+                    elements.title.innerText = data.movie;
+                    elements.composer.innerText = data.composer;
+                    elements.reveal.classList.remove('opacity-0', 'translate-y-4');
+                    break;
+                case 'reset':
+                    elements.reveal.classList.add('opacity-0', 'translate-y-4');
+                    break;
+            }
+        }
+
+        function controlledCountdown(seconds) {
+            return new Promise(resolve => {
+                currentTimerResolve = resolve;
+                remainingSeconds = seconds;
+                elements.timer.innerText = remainingSeconds;
+
+                const interval = setInterval(() => {
+                    if (isPaused) return;
+                    remainingSeconds--;
+                    if (remainingSeconds <= 0) {
+                        clearInterval(interval);
+                        currentTimerResolve = null;
+                        resolve();
+                    } else {
+                        elements.timer.innerText = Math.max(0, remainingSeconds);
+                    }
+                }, 1000);
+
+                const originalResolve = currentTimerResolve;
+                currentTimerResolve = (val) => {
+                    clearInterval(interval);
+                    resolve(val);
+                };
+            });
+        }
+
+        function getStatusTextForPhase(phase) {
+            switch(phase) {
+                case 'playing': return "Listening...";
+                case 'waiting': return "Guessing Time...";
+                case 'revealing': return "The Answer";
+                default: return "";
+            }
+        }
+    </script>
+</body>
+</html>
